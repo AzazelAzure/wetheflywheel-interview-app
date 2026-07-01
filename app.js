@@ -1,4 +1,4 @@
-const { useState } = React;
+const { useState, createElement: e, Fragment } = React;
 const {
   buildForecast,
   convertToLivingCurrency,
@@ -21,6 +21,20 @@ const DEFAULT_FORM = {
   forecast_start: '2026-01-01',
   forecast_end: '2026-12-31',
 };
+
+const PAY_CYCLE_OPTIONS = [
+  ['weekly', 'Weekly'],
+  ['biweekly', 'Biweekly'],
+  ['monthly', 'Monthly'],
+  ['annually', 'Annually'],
+  ['onetime', 'One-time'],
+];
+
+const PAY_RATE_OPTIONS = [
+  ['hourly', 'Hourly'],
+  ['salary', 'Salary'],
+  ['project', 'Project'],
+];
 
 function rateLabel(payRateType) {
   if (payRateType === 'hourly') return 'Hourly rate';
@@ -76,18 +90,130 @@ function validateForm(form) {
   return null;
 }
 
+function SelectField({ label, name, value, onChange, options }) {
+  return e(
+    'label',
+    null,
+    label,
+    e(
+      'select',
+      { name, value, onChange },
+      options.map(([val, text]) => e('option', { key: val, value: val }, text))
+    )
+  );
+}
+
+function NumberField(props) {
+  const { label, hint, name, value, onChange, min, max, step } = props;
+  return e(
+    'label',
+    null,
+    label,
+    hint ? e('span', { className: 'hint' }, hint) : null,
+    e('input', {
+      type: 'number',
+      name,
+      value,
+      onChange,
+      min,
+      max,
+      step,
+    })
+  );
+}
+
+function ForecastOutput({ result }) {
+  if (!result) {
+    return e(
+      'p',
+      { className: 'empty-state' },
+      'Enter parameters and generate a forecast to see results.'
+    );
+  }
+
+  return e(
+    Fragment,
+    null,
+    e(
+      'div',
+      { className: 'assumptions' },
+      e('div', null, e('strong', null, 'Assumptions used:')),
+      e('div', null, 'Tax rate: ' + result.taxRate + '% (user-entered flat rate, not verified)'),
+      e(
+        'div',
+        null,
+        'FX rate: 1 ' +
+          result.payCurrency +
+          ' = ' +
+          formatFxRate(result.fxRate) +
+          ' ' +
+          result.livingCurrency +
+          ' (user-entered static rate, not live market data)'
+      )
+    ),
+    e(
+      'div',
+      { style: { overflowX: 'auto' } },
+      e(
+        'table',
+        null,
+        e(
+          'thead',
+          null,
+          e(
+            'tr',
+            null,
+            e('th', null, 'Date'),
+            e('th', null, 'Gross (' + result.payCurrency + ')'),
+            e('th', null, 'Tax (' + result.payCurrency + ')'),
+            e('th', null, 'Net (' + result.payCurrency + ')'),
+            e('th', null, 'Net (' + result.livingCurrency + ')')
+          )
+        ),
+        e(
+          'tbody',
+          null,
+          result.rows.map((row) =>
+            e(
+              'tr',
+              { key: row.date },
+              e('td', null, row.date),
+              e('td', null, formatMoney(row.gross)),
+              e('td', null, formatMoney(row.taxWithheld)),
+              e('td', null, formatMoney(row.net)),
+              e('td', null, formatMoney(row.netLiving))
+            )
+          )
+        ),
+        e(
+          'tfoot',
+          null,
+          e(
+            'tr',
+            null,
+            e('td', null, 'Cumulative total'),
+            e('td', { colSpan: 2 }),
+            e('td', null, formatMoney(result.totalNet)),
+            e('td', null, formatMoney(result.totalNetLiving))
+          )
+        )
+      )
+    )
+  );
+}
+
 function ForecastApp() {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
-  function handleChange(e) {
-    const { name, value } = e.target;
+  function handleChange(event) {
+    const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
+  function handleSubmit(event) {
+    event.preventDefault();
     const validationError = validateForm(form);
     if (validationError) {
       setError(validationError);
@@ -141,192 +267,134 @@ function ForecastApp() {
     }
   }
 
-  return (
-    <div>
-      <h1>Net Pay Forecaster</h1>
-      <p className="subtitle">
-        Project predicted net income over a date range, with currency conversion.
-      </p>
-
-      <div className="layout">
-        <section className="card">
-          <h2>Income parameters</h2>
-          <form className="form-grid" onSubmit={handleSubmit}>
-            <label>
-              Pay cycle
-              <select name="pay_cycle" value={form.pay_cycle} onChange={handleChange}>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Biweekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="annually">Annually</option>
-                <option value="onetime">One-time</option>
-              </select>
-            </label>
-
-            <label>
-              Pay rate type
-              <select name="pay_rate_type" value={form.pay_rate_type} onChange={handleChange}>
-                <option value="hourly">Hourly</option>
-                <option value="salary">Salary</option>
-                <option value="project">Project</option>
-              </select>
-            </label>
-
-            <label>
-              {rateLabel(form.pay_rate_type)} ({form.pay_currency})
-              <input
-                type="number"
-                name="rate_value"
-                value={form.rate_value}
-                onChange={handleChange}
-                min="0"
-                step="any"
-              />
-            </label>
-
-            {form.pay_rate_type === 'hourly' && (
-              <label>
-                Hours per period
-                <input
-                  type="number"
-                  name="hours_per_period"
-                  value={form.hours_per_period}
-                  onChange={handleChange}
-                  min="0"
-                  step="any"
-                />
-              </label>
-            )}
-
-            <label>
-              Tax rate (%)
-              <span className="hint">Enter as a percentage, e.g. 22 for 22%</span>
-              <input
-                type="number"
-                name="tax_rate"
-                value={form.tax_rate}
-                onChange={handleChange}
-                min="0"
-                max="100"
-                step="any"
-              />
-            </label>
-
-            <label>
-              Pay currency
-              <select name="pay_currency" value={form.pay_currency} onChange={handleChange}>
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Living currency
-              <select name="living_currency" value={form.living_currency} onChange={handleChange}>
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              FX rate
-              <span className="hint">
-                1 {form.pay_currency} = fx_rate {form.living_currency}
-              </span>
-              <input
-                type="number"
-                name="fx_rate"
-                value={form.fx_rate}
-                onChange={handleChange}
-                min="0"
-                step="any"
-              />
-            </label>
-
-            <label>
-              Forecast start
-              <input
-                type="date"
-                name="forecast_start"
-                value={form.forecast_start}
-                onChange={handleChange}
-              />
-            </label>
-
-            <label>
-              Forecast end
-              <input
-                type="date"
-                name="forecast_end"
-                value={form.forecast_end}
-                onChange={handleChange}
-              />
-            </label>
-
-            <div className="actions">
-              <button type="submit">Generate forecast</button>
-            </div>
-
-            {error && <div className="error-banner" role="alert">{error}</div>}
-          </form>
-        </section>
-
-        <section className="card">
-          <h2>Forecast output</h2>
-          {!result ? (
-            <p className="empty-state">Enter parameters and generate a forecast to see results.</p>
-          ) : (
-            <>
-              <div className="assumptions">
-                <div><strong>Assumptions used:</strong></div>
-                <div>Tax rate: {result.taxRate}% (user-entered flat rate, not verified)</div>
-                <div>
-                  FX rate: 1 {result.payCurrency} = {formatFxRate(result.fxRate)} {result.livingCurrency}{' '}
-                  (user-entered static rate, not live market data)
-                </div>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Gross ({result.payCurrency})</th>
-                      <th>Tax ({result.payCurrency})</th>
-                      <th>Net ({result.payCurrency})</th>
-                      <th>Net ({result.livingCurrency})</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.rows.map((row) => (
-                      <tr key={row.date}>
-                        <td>{row.date}</td>
-                        <td>{formatMoney(row.gross)}</td>
-                        <td>{formatMoney(row.taxWithheld)}</td>
-                        <td>{formatMoney(row.net)}</td>
-                        <td>{formatMoney(row.netLiving)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td>Cumulative total</td>
-                      <td colSpan="2"></td>
-                      <td>{formatMoney(result.totalNet)}</td>
-                      <td>{formatMoney(result.totalNetLiving)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </>
-          )}
-        </section>
-      </div>
-    </div>
+  return e(
+    'div',
+    null,
+    e('h1', null, 'Net Pay Forecaster'),
+    e(
+      'p',
+      { className: 'subtitle' },
+      'Project predicted net income over a date range, with currency conversion.'
+    ),
+    e(
+      'div',
+      { className: 'layout' },
+      e(
+        'section',
+        { className: 'card' },
+        e('h2', null, 'Income parameters'),
+        e(
+          'form',
+          { className: 'form-grid', onSubmit: handleSubmit },
+          SelectField({
+            label: 'Pay cycle',
+            name: 'pay_cycle',
+            value: form.pay_cycle,
+            onChange: handleChange,
+            options: PAY_CYCLE_OPTIONS,
+          }),
+          SelectField({
+            label: 'Pay rate type',
+            name: 'pay_rate_type',
+            value: form.pay_rate_type,
+            onChange: handleChange,
+            options: PAY_RATE_OPTIONS,
+          }),
+          e(
+            'label',
+            null,
+            rateLabel(form.pay_rate_type) + ' (' + form.pay_currency + ')',
+            e('input', {
+              type: 'number',
+              name: 'rate_value',
+              value: form.rate_value,
+              onChange: handleChange,
+              min: '0',
+              step: 'any',
+            })
+          ),
+          form.pay_rate_type === 'hourly'
+            ? NumberField({
+                label: 'Hours per period',
+                name: 'hours_per_period',
+                value: form.hours_per_period,
+                onChange: handleChange,
+                min: '0',
+                step: 'any',
+              })
+            : null,
+          NumberField({
+            label: 'Tax rate (%)',
+            hint: 'Enter as a percentage, e.g. 22 for 22%',
+            name: 'tax_rate',
+            value: form.tax_rate,
+            onChange: handleChange,
+            min: '0',
+            max: '100',
+            step: 'any',
+          }),
+          SelectField({
+            label: 'Pay currency',
+            name: 'pay_currency',
+            value: form.pay_currency,
+            onChange: handleChange,
+            options: CURRENCIES.map((c) => [c, c]),
+          }),
+          SelectField({
+            label: 'Living currency',
+            name: 'living_currency',
+            value: form.living_currency,
+            onChange: handleChange,
+            options: CURRENCIES.map((c) => [c, c]),
+          }),
+          NumberField({
+            label: 'FX rate',
+            hint: '1 ' + form.pay_currency + ' = fx_rate ' + form.living_currency,
+            name: 'fx_rate',
+            value: form.fx_rate,
+            onChange: handleChange,
+            min: '0',
+            step: 'any',
+          }),
+          e(
+            'label',
+            null,
+            'Forecast start',
+            e('input', {
+              type: 'date',
+              name: 'forecast_start',
+              value: form.forecast_start,
+              onChange: handleChange,
+            })
+          ),
+          e(
+            'label',
+            null,
+            'Forecast end',
+            e('input', {
+              type: 'date',
+              name: 'forecast_end',
+              value: form.forecast_end,
+              onChange: handleChange,
+            })
+          ),
+          e(
+            'div',
+            { className: 'actions' },
+            e('button', { type: 'submit' }, 'Generate forecast')
+          ),
+          error ? e('div', { className: 'error-banner', role: 'alert' }, error) : null
+        )
+      ),
+      e(
+        'section',
+        { className: 'card' },
+        e('h2', null, 'Forecast output'),
+        e(ForecastOutput, { result })
+      )
+    )
   );
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<ForecastApp />);
+root.render(e(ForecastApp));
