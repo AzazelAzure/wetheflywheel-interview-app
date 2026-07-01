@@ -1,23 +1,48 @@
-# wetheflywheel-interview-app
+# Net Pay Forecaster
 
-A small, self-contained take-home exercise for evaluating **agentic AI engineering** practice: given a spec, use an AI coding agent (Claude Code, Cursor, or similar) to plan, implement, and verify a working app — not just to produce code that compiles.
+A single-page web app that forecasts predicted net income over a date range, with flat-tax and currency-conversion support. Built as a take-home exercise demonstrating agentic AI engineering workflow.
 
-This repo is intentionally standalone. It does not reference or depend on any other project. Everything a candidate needs is in this directory tree.
+## Run locally
 
-## Start here
+No install or build step required.
 
-1. [`design_docs/DESIGN.md`](design_docs/DESIGN.md) — the product spec: what to build.
-2. [`governance/WORKFLOW.md`](governance/WORKFLOW.md) — how to build it: the planning/verification discipline we want demonstrated, not just the output.
+1. Clone this repo.
+2. Open `index.html` directly in a browser (double-click or `file://` URL).
 
-## What's being evaluated
+If your browser restricts local file scripts, serve the repo root instead:
 
-Not "did you produce a forecasting app" — plenty of agents can do that. We're looking at:
+```bash
+python3 -m http.server 8080
+```
 
-- Whether the candidate directs their agent to **plan before implementing** (a short design/plan artifact, not just prompt-and-accept).
-- Whether ambiguous spec points get **surfaced as questions** rather than silently guessed.
-- Whether the agent's own output gets **verified** (tests, manual run-through) before being called done.
-- Code quality and correctness of the forecasting logic itself.
+Then visit `http://localhost:8080`.
 
-## Scope note
+## Live demo
 
-Stack choice (language, framework, CLI vs. web) is intentionally left open — see `design_docs/DESIGN.md` §Non-goals and §Open Choices. Pick what best demonstrates your workflow.
+https://azazelazure.github.io/wetheflywheel-interview-app/
+
+## Run tests
+
+Requires Node.js 18+ (uses the built-in test runner — no npm install needed):
+
+```bash
+node --test test/
+```
+
+## Project structure
+
+| Path | Purpose |
+|---|---|
+| `index.html` | App entry — loads vendored React, Babel, Decimal.js, and the app |
+| `app.js` | React UI (JSX transformed in-browser by Babel Standalone) |
+| `calc.js` | Pure calculation engine — all money math via Decimal.js |
+| `vendor/` | Vendored UMD builds (see `vendor/VERSIONS.md`) |
+| `test/calc.test.js` | Unit tests for the calculation engine |
+| `design_docs/DESIGN.md` | Product spec |
+| `plans/spa-forecast-mvp/` | Build plan and task breakdown |
+
+## Spec and workflow
+
+- Product spec: [`design_docs/DESIGN.md`](design_docs/DESIGN.md)
+- Build plan: [`plans/spa-forecast-mvp/README.md`](plans/spa-forecast-mvp/README.md)
+- Workflow discipline: [`governance/WORKFLOW.md`](governance/WORKFLOW.md)
